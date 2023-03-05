@@ -1,0 +1,560 @@
+<!-- CLH -->
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>太空戰艦</title>
+        <style>
+            #zone{
+                margin: auto;
+                width: 900px;
+                height: 450px;
+            }
+            #Information1{
+                background-color: gray;
+                width: 200px;
+                height: 450px;
+                font-size: 12.5px;
+                float: left;
+            }
+            #Information2 {
+                background-color: gray;
+                width: 200px;
+                height: 450px;
+                font-size: 12.5px;
+                float: right;
+            }
+            #canvas{
+                background-color: black;
+            }
+            #start{
+                font-size: 25px;
+                background-color: skyblue;
+                color: white;
+                text-align: center;
+            }
+            #HP_total{
+                background-color: red;
+                border:1px solid black;
+                margin-right: 1px;
+                width: 10px;
+                height: 10px;
+                border-radius: 10.5px;
+                display:inline-block;
+            }
+            #supershot{
+                border:1px solid black;
+                width: 10px;
+                height: 10px;
+                display:inline-block;
+
+            }
+            #Boss_PK{
+                height: 70px;
+                width: 200px;
+                background-color: chocolate;
+                margin-left: -3px;
+                text-align: center;
+                color: darkblue;
+                font-size: 30px;
+            }
+        </style>
+    </head>
+    <body><!--基礎物件-->
+        <div id="zone">
+            <div id="Information1">
+                <table width="200">
+                    <tr> <td><div id="start" onclick="game_start(1)">開始遊戲</div></td> </tr>
+                    <tr> <td>基本介紹:            </td> </tr>
+                    <tr> <td>總共10關+boss關</td> </tr>
+                    <tr> <td>隕石掉落CD = 1s/關卡數</td> </tr>
+                    <tr> <td>(boss關隕石不會自然掉落)</td> </tr>
+                    <tr> <td>分數每增加10關卡數就會增加</td> </tr>
+                    <tr> <td></td> </tr>
+                    <tr> <td>左/右(A/D) > 移動戰艦</td> </tr>
+                    <tr> <td>上 (W)     > 發射子彈</td> </tr>
+                    <tr> <td>按住空白鍵  > 子彈續力</td> </tr>
+                    <tr> <td></td> </tr>
+                    <tr> <td>續力放大的子彈可以貫穿更多隕石</td> </tr>
+                    <tr> <td>(貫穿時候子彈會變小直到消失)</td> </tr>
+                    <tr> <td>且移動時會中斷續力</td> </tr>
+                    <tr> <td></td> </tr>
+                    <tr> <td>擊毀隕石有機率出現Buff</td> </tr>
+                    <tr> <td><img src="子彈.png"width="12.5"/>子彈減少0.05s子彈CD</td> </tr>
+                    <tr> <td><img src="愛心.png"width="12.5"/>愛心回血(最大值為10)</td> </tr>
+                </table>
+            </div>
+            <canvas id="canvas" width="500px;" height="450px;"></canvas>
+            <div id="Information2">
+                <table width="200">
+                    <tr> <td>level:<span id="level"></span></td> </tr>
+                    <tr> <td>HP:<span id="HP"></span></td> </tr>
+                    <tr> <td>分數:<span id="score"></span></td> </tr>
+                    <tr> <td>子彈CD:<span id="bullet_CD1"></span></td> </tr>
+                    <tr> <td>子彈冷卻:<span id="bullet_CD2"></span></td> </tr>
+                    <tr> <td>子彈續力:<span id="super_shot"></span></td> </tr>
+                    <tr> <td>隕石CD:<span id="meteorite_CD1"></span></td> </tr>
+                    <tr> <td>隕石冷卻:<span id="meteorite_CD2"></span></td> </tr>
+                    <tr> <td onclick="Boss_teach()">Boss資訊(點擊後展開)</td> </tr>
+                    <tr> <td id="boss_teaching" ></td> </tr>
+                </table>
+            </div>
+
+        </div>
+
+    </body>
+    <body>
+        <script>
+            var level = document.getElementById("level")
+            var HP = document.getElementById("HP")
+            var score = document.getElementById("score")
+            var bullet_CD1 = document.getElementById("bullet_CD1")
+            var bullet_CD2 = document.getElementById("bullet_CD2")
+            var super_shot = document.getElementById("super_shot")
+            var meteorite_CD1 = document.getElementById("meteorite_CD1")
+            var meteorite_CD2 = document.getElementById("meteorite_CD2")
+            var keepgame
+
+            var canvas = document.getElementById("canvas")
+            var context = canvas.getContext("2d")
+
+            class IMAGE {
+                constructor(x,y) { 
+                    this.x = x
+                    this.y = y
+                }
+                img = new Image()
+            }
+            class BULLET{
+                constructor(x,y,off_x,off_y,bullet_size) { 
+                    this.x = x
+                    this.y = y
+                    this.off_x = off_x
+                    this.off_y = off_y
+                    this.bullet_size = bullet_size
+                }
+            }
+
+            var size_picture =[new IMAGE(0,0),new IMAGE(0,0),new IMAGE(0,0),new IMAGE,new IMAGE]
+            size_picture[0].img.src="戰艦1.png"
+            size_picture[1].img.src="隕石.png"
+            size_picture[2].img.src="Boss1.png"
+            size_picture[3].img.src="愛心.png"
+            size_picture[4].img.src="子彈.png"
+
+            var Game = {
+                level ,
+                HP ,
+                score ,
+                bullet_CD: 1,
+                meteorite_CD: 1,
+
+                updateCanvastime : 10,
+                start1 : true,
+                go_Left : false,
+                go_right: false,
+
+                battleship_img: new IMAGE(canvas.width/2 - size_picture[0].img.width , canvas.height - size_picture[0].img.height),
+                hurt_effect: 0,
+                gain : [],
+                gain_kind : [],
+                bullet : [],
+                bullet_counter : 0,
+                super_shot : 0,
+                meteorite: [],
+                meteorite_offset :[],
+                meteorite_counter : 0,
+
+                boss_img : new IMAGE(canvas.width/2 - 40 , canvas.height - 200),
+                boss_HP : 0,
+                boss_shield : 40,
+                boss_off : [],
+                attact_CD : 2,
+                attact_counter : 0,
+                attact_kind : [],
+                attact_kind2: [],
+
+                go_side(i){
+                    this.battleship_img.x += i
+                    if ( this.battleship_img.x >= canvas.width - this.battleship_img.img.width ) {this.battleship_img.x = canvas.width - this.battleship_img.img.width}
+                    else if ( this.battleship_img.x <= 0 ) {this.battleship_img.x = 0}
+                    context.drawImage( this.battleship_img.img ,
+                    this.battleship_img.x ,
+                    this.battleship_img.y ,
+                    this.battleship_img.img.width ,
+                    this.battleship_img.img.height)
+                },
+
+                shooting(){
+                    if(this.super_shot>15) { this.super_shot = 15}
+                    this.bullet.push(new BULLET(
+                        this.battleship_img.x + this.battleship_img.img.width/2,
+                        this.battleship_img.y - this.battleship_img.img.height ,
+                        0 , 1 , this.super_shot + 5))
+                    this.bullet_counter = this.bullet_CD*(1000/this.updateCanvastime)
+                    this.super_shot = 0
+                },
+                bullet_move(i){
+                    context.beginPath()
+                    context.arc(this.bullet[i].x+=this.bullet[i].off_x , this.bullet[i].y-=this.bullet[i].off_y , this.bullet[i].bullet_size , 0 , Math.PI*2)
+                    context.fillStyle = "skyblue"
+                    context.fill()
+                    context.closePath()
+                    for (var j = 0; j<this.meteorite.length;j++){
+                        if((this.bullet[i].x >this.meteorite[j].x - this.bullet[i].bullet_size &&
+                            this.bullet[i].x <this.meteorite[j].x + this.meteorite[j].img.width + this.bullet[i].bullet_size)&&
+                           (this.bullet[i].y <this.meteorite[j].y + this.meteorite[j].img.height+ this.bullet[i].bullet_size &&
+                            this.bullet[i].y >this.meteorite[j].y + this.bullet[i].bullet_size) ){
+                                if(this.bullet[i].bullet_size > 6){ this.bullet[i].bullet_size-=3 }
+                                else { this.bullet.splice(i,1) }
+                                this.produce_gain( j , Math.round( Math.random() * 100 ) )
+                                this.delete_meteorite(j)
+                                this.score+=1
+                        }
+                    }
+                    for (var j = 0; j<this.attact_kind2.length;j++){
+                        if((this.bullet[i].x >this.attact_kind2[j].x - this.bullet[i].bullet_size &&
+                            this.bullet[i].x <this.attact_kind2[j].x + 20 + this.bullet[i].bullet_size)&&
+                           (this.bullet[i].y <this.attact_kind2[j].y + 5 + this.bullet[i].bullet_size &&
+                            this.bullet[i].y >this.attact_kind2[j].y + this.bullet[i].bullet_size) ){
+                                if(this.bullet[i].bullet_size > 6){ this.bullet[i].bullet_size-=3 }
+                                else { this.bullet.splice(i,1) }
+                                this.attact_kind2.splice(j,1)
+                        }
+                    }
+                    if((this.bullet[i].x >this.boss_img.x - this.bullet[i].bullet_size &&
+                        this.bullet[i].x <this.boss_img.x + this.boss_img.img.width + this.bullet[i].bullet_size)&&
+                       (this.bullet[i].y <this.boss_img.y + this.boss_img.img.height+ this.bullet[i].bullet_size &&
+                        this.bullet[i].y >this.boss_img.y + this.bullet[i].bullet_size) ){
+                            if(this.bullet[i].bullet_size > 6){ this.bullet[i].bullet_size-=1 }
+                            else { this.bullet.splice(i,1) }
+                            if(this.boss_shield >= 10) {this.boss_shield-=10}
+                            else {this.boss_HP--}
+                        }
+                },
+
+                produce_meteorite(i){
+                    this.meteorite_counter = this.meteorite_CD*(1000/this.updateCanvastime)
+                    this.meteorite.push( new IMAGE(
+                        Math.round ( Math.random() * (canvas.width + size_picture[1].img.width ) - size_picture[1].img.width ) ,
+                        Math.round ( Math.random() * 10 - (size_picture[1].img.height + 10 ) ) 
+                    ) )
+                    this.meteorite_offset.push(
+                        (Math.floor ( Math.random() * 
+                        (canvas.width - size_picture[1].img.width - this.meteorite[i].x) ) + 
+                        ( 0 - this.meteorite[i].x ) ) / ( canvas.height-this.battleship_img.img.height - this.meteorite[i].y ) 
+                    )
+                    this.meteorite[i].img.src = size_picture[1].img.src
+                },
+                meteorite_move(i){
+                    context.drawImage(this.meteorite[i].img,
+                    this.meteorite[i].x += this.meteorite_offset[i] ,
+                    this.meteorite[i].y += 1 ,
+                    this.meteorite[i].img.width ,
+                    this.meteorite[i].img.height)
+                    if((this.battleship_img.x >this.meteorite[i].x - this.battleship_img.img.width &&
+                        this.battleship_img.x <this.meteorite[i].x + this.meteorite[i].img.width)  &&
+                       (this.battleship_img.y <this.meteorite[i].y + this.meteorite[i].img.height  &&
+                        this.battleship_img.y >this.meteorite[i].y - this.battleship_img.img.height ) ) {
+                            this.delete_meteorite(i)
+                            this.HP -=1
+                            this.hurt_effect = 50
+                        }
+                },
+                delete_meteorite(i){
+                    this.meteorite.splice(i,1)
+                    this.meteorite_offset.splice(i,1)
+                },
+
+                produce_gain(i,j){
+                    if ( j <= 5 ) {this.gain_kind.push(size_picture[3].img.src) }//5%
+                    else if ( j > 5 && j <= 10 ) {this.gain_kind.push(size_picture[4].img.src)}//5%
+                    else { return }
+                    this.gain.push(new IMAGE(
+                        this.meteorite[i].x + (this.meteorite[i].img.width - 20 )/2,
+                        this.meteorite[i].y + (this.meteorite[i].img.height- 20 )/2) )
+                    this.gain[this.gain.length-1].img.width =20
+                    this.gain[this.gain.length-1].img.height=20
+                    this.gain[this.gain.length-1].img.src=this.gain_kind[this.gain.length-1]
+                },
+                gain_down(i){
+                    context.drawImage(this.gain[i].img,
+                    this.gain[i].x ,
+                    this.gain[i].y += 1 ,
+                    this.gain[i].img.width ,
+                    this.gain[i].img.height)
+                    if((this.battleship_img.x >this.gain[i].x - this.battleship_img.img.width &&
+                        this.battleship_img.x <this.gain[i].x + this.gain[i].img.width) &&
+                       (this.battleship_img.y <this.gain[i].y + this.gain[i].img.height  &&
+                        this.battleship_img.y >this.gain[i].y - this.battleship_img.img.height ) ) {
+                            if (this.gain[i].img.src==size_picture[3].img.src) { this.HP +=1 }
+                            else if(this.gain[i].img.src==size_picture[4].img.src) { this.bullet_CD -= 0.05 }
+                            this.delete_gain(i)
+                        }
+                },
+                delete_gain(i){
+                    this.gain.splice(i,1)
+                    this.gain_kind.splice(i,1)
+                },
+
+                boss_move(off_x,off_y){
+                    this.boss_img.x += Math.round(Math.random()*10)-5
+                    this.boss_img.y += Math.round(Math.random()*10)-5
+                    if(this.boss_img.x >= canvas.width  - 40 ){this.boss_img.x = canvas.width - 40}
+                    else if(this.boss_img.x <= 0 ) {this.boss_img.x = 0}
+                    if(this.boss_img.y >= canvas.height - 340){this.boss_img.y = canvas.height - 340}
+                    else if(this.boss_img.y <= 40 ) {this.boss_img.y = 40}
+                    context.drawImage( this.boss_img.img ,
+                    this.boss_img.x ,
+                    this.boss_img.y ,
+                    this.boss_img.img.width=40  ,
+                    this.boss_img.img.height=40 )
+
+                    for(var i=0;i<this.attact_kind.length ;i++){
+                        context.beginPath()
+                        context.arc(this.attact_kind[i].x+=this.attact_kind[i].off_x , this.attact_kind[i].y+=this.attact_kind[i].off_y , this.attact_kind[i].bullet_size , 0 , Math.PI*2)
+                        context.fillStyle = "red"
+                        context.fill()
+                        context.closePath()
+                        if((this.attact_kind[i].x >this.battleship_img.x - this.attact_kind[i].bullet_size &&
+                            this.attact_kind[i].x <this.battleship_img.x + this.battleship_img.img.width + this.attact_kind[i].bullet_size)&&
+                           (this.attact_kind[i].y <this.battleship_img.y + this.battleship_img.img.height+ this.attact_kind[i].bullet_size &&
+                            this.attact_kind[i].y >this.battleship_img.y + this.attact_kind[i].bullet_size) ){
+                                if(this.attact_kind[i].bullet_size > 6){ this.attact_kind[i].bullet_size-=3 }
+                                else { this.attact_kind.splice(i,1) }
+                                this.HP-- 
+                                this.hurt_effect = 50 }
+                    }
+                    for(var i=0;i<this.attact_kind2.length;i++){
+                        context.fillStyle = "yellow"
+                        context.fillRect(this.attact_kind2[i].x+=this.attact_kind2[i].off_x , this.attact_kind2[i].y+=this.attact_kind2[i].off_y ,20,5)
+                        if((this.attact_kind2[i].x >this.battleship_img.x - 20 &&
+                            this.attact_kind2[i].x <this.battleship_img.x + this.battleship_img.img.width )&&
+                           (this.attact_kind2[i].y <this.battleship_img.y + this.battleship_img.img.height &&
+                            this.attact_kind2[i].y >this.battleship_img.y + 5) ){
+                                if(this.attact_kind2[i].bullet_size > 6){ this.attact_kind2[i].bullet_size-=3 }
+                                else { this.attact_kind2.splice(i,1) }
+                                this.HP-- 
+                                this.hurt_effect = 50 }
+                    }
+                },
+                boss_attact(i){
+                    var j
+                    this.attact_counter = this.attact_CD*1000/this.updateCanvastime
+                    if (i==0){
+                        if (this.boss_HP>=50) { j = 5 }
+                        else { j = 10 }
+                        for(var k = 0 ; k < j ;k++)
+                            this.produce_meteorite(this.meteorite.length)
+                    }
+                    else if (i==1){
+                        if (this.boss_HP>=50) { j = 10 }
+                        else { j = 20 }
+                        this.attact_kind.push(new BULLET(
+                            this.boss_img.x + this.boss_img.img.width/2,
+                            this.boss_img.y + this.boss_img.img.height ,
+                            0 , 1 , j ) )
+                    } 
+                    else if (i==2){
+                        if (this.boss_HP>=50) { j = 5}
+                        else { j = 10 }
+                        for(var k=0;k<j;k++)
+                            this.attact_kind.push(new BULLET(
+                                this.boss_img.x + this.boss_img.img.width/2,
+                                this.boss_img.y + this.boss_img.img.height ,
+                                (Math.floor ( Math.random() * 
+                                ( this.battleship_img.x + this.battleship_img.img.width/2 + 100 - 5 - this.boss_img.x + this.boss_img.img.width/2) ) + 
+                                ( this.battleship_img.x + this.battleship_img.img.width/2 - 100 - 5 - this.boss_img.x + this.boss_img.img.width/2) ) / 
+                                ( this.battleship_img.y - this.boss_img.y ) , 1 , 5 ) )
+                    }
+                    else if (i==3){
+                        if (this.boss_HP>=50) { j = 10}
+                        else { j = 20 }
+                        for(var k=0;k<j;k++)
+                            this.attact_kind2.push(new BULLET(
+                                this.boss_img.x + this.boss_img.img.width/2,
+                                this.boss_img.y + this.boss_img.img.height ,
+                                (Math.floor ( Math.random() * 
+                                ( this.battleship_img.x + this.battleship_img.img.width/2 + 100 - 20 - this.boss_img.x + this.boss_img.img.width/2) ) + 
+                                ( this.battleship_img.x + this.battleship_img.img.width/2 - 100 - 20 - this.boss_img.x + this.boss_img.img.width/2) ) / 
+                                ( this.battleship_img.y - this.boss_img.y ) , 1 , 5 ) )
+                    }
+                    if(this.boss_shield>=50) this.boss_shield=50
+                    this.boss_shield +=  2
+                },
+            }
+
+            function game_start(i){
+                keepgame=true
+                if (i==2){
+                    Game.level = "MAX"
+                    Game.HP = 10
+                    Game.score = 100
+                    Game.bullet_CD = 0
+                }
+                else {
+                    Game.level = 1
+                    Game.HP = 5
+                    Game.bullet_CD = 1
+                }
+                Game.score = 0
+                Game.meteorite_CD = 1
+                Game.go_Left = false
+                Game.go_right= false
+                Game.battleship_img = new IMAGE(canvas.width/2 - size_picture[0].img.width , canvas.height - size_picture[0].img.height)
+                Game.hurt_effect =  0
+                Game.gain = []
+                Game.gain_kind = []
+                Game.bullet = []
+                Game.bullet_counter = 0
+                Game.super_shot = 0
+                Game.meteorite = []
+                Game.meteorite_offset = []
+                Game.meteorite_counter = 0
+                Game.boss_img = new IMAGE(canvas.width/2 - 40 , canvas.height - 200)
+                Game.boss_HP = 100
+                Game.boss_shield = 45
+                Game.boss_off = []
+                Game.attact_CD = 2
+                Game.attact_counter = 0
+                Game.attact_kind = []
+                Game.attact_kind2= []
+                
+                if ( Game.start1 ) {
+                    setInterval( update, Game.updateCanvastime)
+                    Game.start1 = false }//保證只跑第一次
+            }
+            
+            function update(){
+                if(!keepgame) { return }
+                level.innerText = Game.level
+                score.innerText = Game.score
+                HP.innerHTML =``
+                for (var i = 0; i < Game.HP ; i++) {HP.innerHTML +=`<span id="HP_total"></span>`}
+                super_shot.innerText=``
+                for (var i = 0; i < 5 ; i++ ) {
+                    if(Game.super_shot-1-i*3 >0) {super_shot.innerHTML += `<span style="background-color: red;"   id="supershot"></span>`}
+                    else                         {super_shot.innerHTML += `<span style="background-color: black;" id="supershot"></span>`}
+                }
+                bullet_CD1.innerText = `${Math.round(Game.bullet_CD*100)/100}s`
+                bullet_CD2.innerText = `${Math.round(Game.bullet_counter*Game.updateCanvastime)/1000}s`
+
+                if(Game.HP > 10 ) { Game.HP = 10}
+                if (Game.hurt_effect > 0) { Game.hurt_effect-- }
+                if (Game.bullet_CD < 0 ) { Game.bullet_CD = 0}
+                if (Game.bullet_counter <= 0) {Game.bullet_counter = 0}
+                else {Game.bullet_counter --}
+
+                if (Game.level != "MAX") {
+                    meteorite_CD1.innerText = `${Math.round(Game.meteorite_CD*100)/100}s`
+                    meteorite_CD2.innerText = `${Math.round(Game.meteorite_counter*Game.updateCanvastime)/1000}s`
+
+                    if (Game.meteorite_counter <= 0) { Game.produce_meteorite(Game.meteorite.length) }
+                    else {Game.meteorite_counter --}
+
+                    Game.meteorite_CD = 1/Game.level
+                    if (Game.score>=100){Game.level="MAX"}
+                    else if (Game.score>=90){Game.level=10}
+                    else if (Game.score>=80){Game.level=9}
+                    else if (Game.score>=70){Game.level=8}
+                    else if (Game.score>=60){Game.level=7}
+                    else if (Game.score>=50){Game.level=6}
+                    else if (Game.score>=40){Game.level=5}
+                    else if (Game.score>=30){Game.level=4}
+                    else if (Game.score>=20){Game.level=3}
+                    else if (Game.score>=10){Game.level=2}
+                }
+                
+                document.addEventListener("keydown",keydown)
+                document.addEventListener("keyup",keyup)
+
+                if (Game.go_Left ) { Game.battleship_img.x-=2.5}
+                if (Game.go_right) { Game.battleship_img.x+=2.5}
+
+                context.fillStyle = "black"
+                context.fillRect(0 , 0, canvas.width , canvas.height)
+
+                if (Game.hurt_effect % 2 == 0 ) { Game.battleship_img.img.src="戰艦1.png" }
+                else { Game.battleship_img.img.src="戰艦2.png" }
+                Game.battleship_img.onload = Game.go_side(0)
+                for (var i = 0; i<Game.gain.length; i++){ // 增益區
+                    if (Game.gain[i].y >= canvas.height + Game.gain[i].img.height) { Game.delete_gain(i)}
+                    else{ Game.gain[i].img.onload = Game.gain_down(i) }
+                }
+                for (var i = 0; i<Game.bullet.length; i++){ // 子彈區
+                    if(Game.bullet[i].y <= -Game.bullet[i].bullet_size) { Game.bullet.splice(i,1) }
+                    else { Game.bullet_move(i) }
+                }
+                for (var i = 0; i<Game.meteorite.length; i++){ // 隕石區
+                    if (Game.meteorite[i].y >= canvas.height + Game.meteorite[i].img.height) { Game.delete_meteorite(i)}
+                    else{ Game.meteorite[i].img.onload = Game.meteorite_move(i) }
+                }
+                if (Game.level == "MAX"){
+                    if (Game.boss_HP >= 50) {Game.boss_img.img.src="Boss1.png"}
+                    else {
+                        Game.boss_img.img.src="Boss2.png"
+                        Game.attact_CD =1
+                    }
+                    Game.boss_img.img.onload = Game.boss_move()
+                    if (Game.attact_counter <= 0 ){Game.boss_attact(Math.round( Math.random() * 4 ))}
+                    else {Game.attact_counter--}
+                    context.fillStyle = "gray"
+                    context.fillRect(48 , 8 , 404 , 24)
+                    context.fillStyle = "black"
+                    context.fillRect(50 , 10 , 400 , 20)
+                    for(var i = 0 ; i < Game.boss_HP ; i++ ){
+                        context.fillStyle = "red"
+                        context.fillRect(50+i*4 , 10 , 4 , 20)
+                    }
+                    for(var i = 1 ; i < 6 ; i++ ){
+                        if (Game.boss_shield > i*10) {context.fillStyle = "yellow"}
+                        else {context.fillStyle = "gray"}
+                        context.fillRect(30+i*20 , 36 , 18 , 12)
+                    }
+                }
+                if (Game.boss_HP<=0 || Game.HP <= 0) { 
+                    context.fillStyle="white" 
+                    context.font="bold 50px Arial"
+                    keepgame=false
+                    if (Game.boss_HP<=0) context.fillText("You Win!",150,100)
+                    else context.fillText("gameover!",120,100)
+                }
+            }
+
+            function keyup(event){
+                if      ( event.keyCode === 37||event.keyCode === 65) { Game.go_Left = false } // 左
+                else if ( event.keyCode === 39||event.keyCode === 68) { Game.go_right= false } // 右
+                else if ( event.keyCode === 32 && Game.bullet_counter == 0 ) { Game.shooting() } //空白鍵
+            }
+            function keydown(event){
+                if      ( (event.keyCode === 38||event.keyCode === 87) && Game.bullet_counter == 0 ){ // 上
+                    Game.shooting()
+                }
+                else if ( event.keyCode === 32 && Game.bullet_counter == 0 ){ Game.super_shot++}// 空白鍵
+                else if ( event.keyCode === 37||event.keyCode === 65) { Game.go_Left = true } // 左
+                else if ( event.keyCode === 39||event.keyCode === 68) { Game.go_right= true } // 右
+            }
+
+            function Boss_teach(){
+                if (document.getElementById("boss_teaching").innerText == ""){
+                    document.getElementById("boss_teaching").innerHTML =`
+                    <div>Boss每2秒隨機以下攻擊方式:</div>
+                    <div>20%召喚5個隕石</div>
+                    <div>20%用大型砲彈攻擊</div>
+                    <div>20%用5顆小砲彈攻擊</div>
+                    <div>20%用10個黃色方塊攻擊(可消除)</div>
+                    <div>20%不攻擊</div>
+                    <div>Boss每過10s(狂暴模式下為5)</div>
+                    <div>會增加一格護盾(黃色格子)</div>
+                    <div>當Boss的HP<50進入狂暴模式</div>
+                    <div>攻擊CD減半且攻擊強度也會增加</div>
+                    <div id="Boss_PK" onclick="game_start(2)">點此直接進行Boss戰</div>
+                    `
+                }
+                else {document.getElementById("boss_teaching").innerText = ""}
+            }
+        </script>
+    </body>
+</html>
+
